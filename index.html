@@ -694,11 +694,11 @@
         </div>
         <p class="hero-sub">
           Drop your export folder, click once, and Shiftune cleans every filename into a store-ready,
-          playlist-ready, DJ-ready title with BPM and mood tags. No more “_final_mixdown_v12_master(2)”.
+          playlist-ready, DJ-ready title with BPM and mood tags. No more "_final_mixdown_v12_master(2)".
         </p>
 
         <div class="hero-pill">
-          WORLD LOUNGE LAB · <span>SHIFTUNE ENGINE v1</span>
+          WORLD LOUNGE LAB · <span>SHIFTUNE ENGINE v2</span>
         </div>
 
         <div class="hero-main">
@@ -802,10 +802,12 @@
       if (!fileInput || !dropZone) return;
 
       let files = [];
+      let processedResults = []; // Store results with tagged file data
       let processing = false;
 
       function resetState() {
         files = [];
+        processedResults = [];
         processing = false;
         fileList.innerHTML = "";
         startButton.disabled = true;
@@ -890,6 +892,7 @@
       async function processAll() {
         if (processing || files.length === 0) return;
         processing = true;
+        processedResults = [];
         startButton.disabled = true;
         clearButton.disabled = true;
         statusText.textContent = "Processing files with Shiftune...";
@@ -944,10 +947,18 @@
           }
 
           const displayTitle = data.track_name;
-          const displayBpm = Number.isFinite(data.bpm)
-            ? Math.round(data.bpm)
-            : data.bpm;
+          const displayBpm = Number.isFinite(data.bpm) ? Math.round(data.bpm) : data.bpm;
           const displayMood = data.mood || "";
+
+          // Store the result with file data for download
+          processedResults[index] = {
+            trackName: displayTitle,
+            bpm: displayBpm,
+            mood: displayMood,
+            newFilename: data.new_filename,
+            fileData: data.file_data,  // Base64 encoded tagged file
+            fileType: data.file_type
+          };
 
           if (tag) {
             tag.classList.remove("processing");
@@ -956,8 +967,7 @@
           }
 
           if (resultLine) {
-            resultLine.textContent =
-              displayTitle + " · " + displayBpm + " BPM · " + displayMood;
+            resultLine.textContent = displayTitle + " · " + displayBpm + " BPM · " + displayMood;
           }
 
           const actions = item.querySelector(".file-actions");
@@ -966,14 +976,7 @@
             btn = document.createElement("button");
             btn.className = "download-btn";
             btn.textContent = "Download";
-
-            const prettyTitle =
-              displayTitle + " (" + displayBpm + " BPM - " + displayMood + ")";
-
-            btn.addEventListener("click", () =>
-              downloadRenamedFile(file, prettyTitle)
-            );
-
+            btn.addEventListener("click", () => downloadTaggedFile(index));
             actions.appendChild(btn);
           }
 
@@ -988,32 +991,34 @@
 
           const errorMsg = document.createElement("div");
           errorMsg.className = "file-error-msg";
-          errorMsg.textContent =
-            err && err.message ? err.message : "Failed to rename this file.";
+          errorMsg.textContent = err && err.message ? err.message : "Failed to rename this file.";
           item.querySelector(".file-meta").appendChild(errorMsg);
           return false;
         }
       }
 
-      async function downloadRenamedFile(file, prettyTitle) {
-        const extension = file.name.split(".").pop().toLowerCase();
+      // Download the tagged file from base64 data
+      function downloadTaggedFile(index) {
+        const result = processedResults[index];
+        if (!result || !result.fileData) {
+          alert("No file data available");
+          return;
+        }
 
-        const safeTitle = prettyTitle
-          .replace(/[\/\\:*?"<>|]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
+        // Decode base64 to binary
+        const byteCharacters = atob(result.fileData);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: result.fileType || "audio/mpeg" });
 
-        const newName = safeTitle + "." + extension;
-
-        const buffer = await file.arrayBuffer();
-        const blob = new Blob([buffer], {
-          type: file.type || "audio/mpeg",
-        });
-
+        // Create download link
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = newName;
+        a.download = result.newFilename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
