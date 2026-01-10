@@ -671,6 +671,7 @@
       color: var(--primary);
     }
   </style>
+  <script src="https://unpkg.com/browser-id3-writer@4.0.0/dist/browser-id3-writer.min.js"></script>
 </head>
 
 <body>
@@ -720,8 +721,8 @@
             </div>
             <div class="stat-card">
               <div class="stat-label">Designed For</div>
-              <div class="stat-value">Beat Stores</div>
-              <div class="stat-tagline">Bandcamp, BeatStars, Gumroad, Patreon.</div>
+              <div class="stat-value">Beat Poducers</div>
+              <div class="stat-tagline">Content Creators, AI Producers, Gumroad, Patreon.</div>
             </div>
           </div>
         </div>
@@ -966,12 +967,13 @@
         const existingBtn = actions.querySelector(".download-btn");
         if (!existingBtn) {
           const btn = document.createElement("button");
-          btn.className = "download-btn";
-          btn.textContent = "Download";
-          btn.addEventListener("click", () =>
-            downloadRenamedFile(file, data.track_slug)
-          );
-          actions.appendChild(btn);
+btn.className = "download-btn";
+btn.textContent = "Download";
+btn.addEventListener("click", () =>
+  downloadRenamedFile(file, data.track_slug, data.track_name, data.bpm, data.mood)
+);
+actions.appendChild(btn);
+;
         }
 
         return true;
@@ -993,20 +995,63 @@
         return false;
       }
     }
+// Download with new filename AND new MP3 tags
+async function downloadRenamedFile(file, slug, displayTitle, bpm, mood) {
+  const extension = file.name.split(".").pop().toLowerCase();
+  const newName = `${slug}.${extension}`;
 
-    function downloadRenamedFile(file, slug) {
-      const url = URL.createObjectURL(file);
+  // Get the raw audio bytes
+  const buffer = await file.arrayBuffer();
+
+  // If it's an MP3 and the ID3 library is loaded, write tags
+  if (extension === "mp3" && window.ID3Writer) {
+    try {
+      const writer = new ID3Writer(buffer);
+
+      writer
+        .setFrame("TIT2", displayTitle)                // Title shown by players
+        .setFrame("TALB", "Shiftune Batch")           // Album
+        .setFrame("TPE1", ["Shiftune Artist"])        // Artist placeholder
+        .setFrame("TXXX", {                           // Custom BPM field
+          description: "Shiftune BPM",
+          value: String(Math.round(bpm || 0)),
+        })
+        .setFrame("COMM", {                           // Comment with mood
+          description: "Comment",
+          text: `Shiftune mood: ${mood || ""}`,
+        });
+
+      writer.addTag();
+
+      const taggedBlob = writer.getBlob();
+      const url = URL.createObjectURL(taggedBlob);
       const a = document.createElement("a");
       a.href = url;
-      const parts = file.name.split(".");
-      const ext = parts.length > 1 ? parts.pop() : "wav";
-      a.download = slug + "." + ext;
+      a.download = newName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      return;
+    } catch (e) {
+      console.error("ID3 tag write failed, falling back:", e);
+      // fall through to fallback rename
     }
+  }
 
+  // Fallback for non-MP3 or if tagging fails: just rename
+  const renamedFile = new File([buffer], newName, {
+    type: file.type || "audio/mpeg",
+  });
+  const url = URL.createObjectURL(renamedFile);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = newName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
     dropZone.addEventListener("click", () => {
       if (!processing) fileInput.click();
     });
