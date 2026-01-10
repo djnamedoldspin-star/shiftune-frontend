@@ -996,48 +996,63 @@ actions.appendChild(btn);
       }
     }
 // Download with new filename AND new MP3 tags
+// Download with new filename AND new MP3 tags
 async function downloadRenamedFile(file, slug, displayTitle, bpm, mood) {
   const extension = file.name.split(".").pop().toLowerCase();
   const newName = `${slug}.${extension}`;
 
-  // Get the raw audio bytes
+  // Read file bytes
   const buffer = await file.arrayBuffer();
 
-  // If it's an MP3 and the ID3 library is loaded, write tags
-  if (extension === "mp3" && window.ID3Writer) {
+  // Helper: actually trigger the browser download
+  const triggerDownload = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = newName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // If MP3 and ID3Writer is available, write tags
+  if (extension === "mp3" && typeof ID3Writer !== "undefined") {
     try {
       const writer = new ID3Writer(buffer);
 
       writer
-        .setFrame("TIT2", displayTitle)                // Title shown by players
-        .setFrame("TALB", "Shiftune Batch")           // Album
-        .setFrame("TPE1", ["Shiftune Artist"])        // Artist placeholder
-        .setFrame("TXXX", {                           // Custom BPM field
+        .setFrame("TIT2", displayTitle || newName)        // Track title
+        .setFrame("TALB", "Shiftune Batch")               // Album
+        .setFrame("TPE1", ["Shiftune Artist"])            // Artist placeholder
+        .setFrame("TXXX", {                               // Custom BPM field
           description: "Shiftune BPM",
           value: String(Math.round(bpm || 0)),
         })
-        .setFrame("COMM", {                           // Comment with mood
+        .setFrame("COMM", {                               // Comment with mood
           description: "Comment",
           text: `Shiftune mood: ${mood || ""}`,
         });
 
       writer.addTag();
 
-      const taggedBlob = writer.getBlob();
-      const url = URL.createObjectURL(taggedBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = newName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return;
+      // browser-id3-writer exposes the tagged data as arrayBuffer
+      const taggedBuffer = writer.arrayBuffer;
+      const taggedBlob = new Blob([taggedBuffer], { type: "audio/mpeg" });
+
+      triggerDownload(taggedBlob);
+      return; // success path; stop here
     } catch (e) {
-      console.error("ID3 tag write failed, falling back:", e);
-      // fall through to fallback rename
+      console.error("ID3 tag write failed, falling back rename only:", e);
+      // fall through to simple rename
     }
   }
+
+  // Non-MP3 or if tagging fails → just rename the file
+  const renamedBlob = new Blob([buffer], { type: file.type || "audio/mpeg" });
+  triggerDownload(renamedBlob);
+}
+
 
   // Fallback for non-MP3 or if tagging fails: just rename
   const renamedFile = new File([buffer], newName, {
