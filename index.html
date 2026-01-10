@@ -60,7 +60,6 @@
       body {
         padding: 16px;
       }
-
       .shell {
         grid-template-columns: 1fr;
       }
@@ -786,275 +785,276 @@
   </div>
 
   <script>
-    // Backend API URL (Render Docker service)
-    const API_URL = "https://shiftune-backend-1.onrender.com/process-audio";
+    document.addEventListener("DOMContentLoaded", () => {
+      const API_URL = "https://shiftune-backend-1.onrender.com/process-audio";
+      const MAX_FILES = 50;
 
-    const MAX_FILES = 50;
+      const fileInput = document.getElementById("fileInput");
+      const dropZone = document.getElementById("dropZone");
+      const startButton = document.getElementById("startButton");
+      const clearButton = document.getElementById("clearButton");
+      const statusText = document.getElementById("statusText");
+      const progressBar = document.getElementById("progressBar");
+      const fileList = document.getElementById("fileList");
+      const processedCountSpan = document.getElementById("processedCount");
+      const totalCountSpan = document.getElementById("totalCount");
 
-    const fileInput = document.getElementById("fileInput");
-    const dropZone = document.getElementById("dropZone");
-    const startButton = document.getElementById("startButton");
-    const clearButton = document.getElementById("clearButton");
-    const statusText = document.getElementById("statusText");
-    const progressBar = document.getElementById("progressBar");
-    const fileList = document.getElementById("fileList");
-    const processedCountSpan = document.getElementById("processedCount");
-    const totalCountSpan = document.getElementById("totalCount");
+      if (!fileInput || !dropZone) return;
 
-    let files = [];
-    let processing = false;
+      let files = [];
+      let processing = false;
 
-    function resetState() {
-      files = [];
-      processing = false;
-      fileList.innerHTML = "";
-      startButton.disabled = true;
-      clearButton.disabled = false;
-      progressBar.style.width = "0%";
-      statusText.textContent = "Waiting for files.";
-      processedCountSpan.textContent = "0";
-      totalCountSpan.textContent = "0";
-    }
-
-    function humanFileSize(bytes) {
-      if (bytes === 0) return "0 B";
-      const units = ["B", "KB", "MB", "GB"];
-      const i = Math.floor(Math.log(bytes) / Math.log(1024));
-      return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
-    }
-
-    function addFiles(newFiles) {
-      const arr = Array.from(newFiles);
-      const combined = files.concat(arr);
-      if (combined.length > MAX_FILES) {
-        alert("Shiftune limit: " + MAX_FILES + " files per run.");
-        return;
+      function resetState() {
+        files = [];
+        processing = false;
+        fileList.innerHTML = "";
+        startButton.disabled = true;
+        clearButton.disabled = false;
+        progressBar.style.width = "0%";
+        statusText.textContent = "Waiting for files.";
+        processedCountSpan.textContent = "0";
+        totalCountSpan.textContent = "0";
       }
-      files = combined;
-      renderFileList();
-      startButton.disabled = files.length === 0;
-      statusText.textContent = "Ready. Click RUN SHIFTUNE.";
-      totalCountSpan.textContent = String(files.length);
-    }
 
-    function renderFileList() {
-      fileList.innerHTML = "";
-      files.forEach((file, index) => {
-        const item = document.createElement("div");
-        item.className = "file-item";
-        item.id = "file-" + index;
+      function humanFileSize(bytes) {
+        if (bytes === 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
+      }
 
-        const icon = document.createElement("div");
-        icon.className = "file-icon";
-        icon.textContent = file.name.split(".").pop().toUpperCase().slice(0, 3);
-
-        const meta = document.createElement("div");
-        meta.className = "file-meta";
-
-        const name = document.createElement("div");
-        name.className = "file-name";
-        name.textContent = file.name;
-
-        const result = document.createElement("div");
-        result.className = "file-result";
-        result.textContent = humanFileSize(file.size);
-
-        meta.appendChild(name);
-        meta.appendChild(result);
-
-        const actions = document.createElement("div");
-        actions.className = "file-actions";
-
-        const tag = document.createElement("div");
-        tag.className = "file-tag processing";
-        tag.dataset.index = index;
-
-        const dot = document.createElement("span");
-        dot.className = "dot";
-        tag.appendChild(dot);
-
-        const text = document.createElement("span");
-        text.textContent = "Queued";
-        tag.appendChild(text);
-
-        actions.appendChild(tag);
-
-        item.appendChild(icon);
-        item.appendChild(meta);
-        item.appendChild(actions);
-
-        fileList.appendChild(item);
-      });
-    }
-
-    async function processAll() {
-      if (processing || files.length === 0) return;
-      processing = true;
-      startButton.disabled = true;
-      clearButton.disabled = true;
-      statusText.textContent = "Processing files with Shiftune...";
-
-      let processedCount = 0;
-      processedCountSpan.textContent = "0";
-      progressBar.style.width = "0%";
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const ok = await processSingleFile(file, i);
-        if (ok) {
-          processedCount++;
-          processedCountSpan.textContent = String(processedCount);
+      function addFiles(newFiles) {
+        const arr = Array.from(newFiles);
+        const combined = files.concat(arr);
+        if (combined.length > MAX_FILES) {
+          alert("Shiftune limit: " + MAX_FILES + " files per run.");
+          return;
         }
-        const percent = Math.round(((i + 1) / files.length) * 100);
-        progressBar.style.width = percent + "%";
+        files = combined;
+        renderFileList();
+        startButton.disabled = files.length === 0;
+        statusText.textContent = "Ready. Click RUN SHIFTUNE.";
+        totalCountSpan.textContent = String(files.length);
       }
 
-      statusText.textContent = "Done. Download renamed files from the list.";
-      processing = false;
-      clearButton.disabled = false;
-    }
+      function renderFileList() {
+        fileList.innerHTML = "";
+        files.forEach((file, index) => {
+          const item = document.createElement("div");
+          item.className = "file-item";
+          item.id = "file-" + index;
 
-    async function processSingleFile(file, index) {
-      const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
-      const item = document.getElementById("file-" + index);
-      const resultLine = item.querySelector(".file-result");
+          const icon = document.createElement("div");
+          icon.className = "file-icon";
+          icon.textContent = file.name.split(".").pop().toUpperCase().slice(0, 3);
 
-      if (tag) {
-        tag.classList.remove("success", "error");
-        tag.classList.add("processing");
-        tag.querySelector("span:nth-child(2)").textContent = "Renaming...";
+          const meta = document.createElement("div");
+          meta.className = "file-meta";
+
+          const name = document.createElement("div");
+          name.className = "file-name";
+          name.textContent = file.name;
+
+          const result = document.createElement("div");
+          result.className = "file-result";
+          result.textContent = humanFileSize(file.size);
+
+          meta.appendChild(name);
+          meta.appendChild(result);
+
+          const actions = document.createElement("div");
+          actions.className = "file-actions";
+
+          const tag = document.createElement("div");
+          tag.className = "file-tag processing";
+          tag.dataset.index = index;
+
+          const dot = document.createElement("span");
+          dot.className = "dot";
+          tag.appendChild(dot);
+
+          const text = document.createElement("span");
+          text.textContent = "Queued";
+          tag.appendChild(text);
+
+          actions.appendChild(tag);
+
+          item.appendChild(icon);
+          item.appendChild(meta);
+          item.appendChild(actions);
+
+          fileList.appendChild(item);
+        });
       }
 
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
+      async function processAll() {
+        if (processing || files.length === 0) return;
+        processing = true;
+        startButton.disabled = true;
+        clearButton.disabled = true;
+        statusText.textContent = "Processing files with Shiftune...";
 
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: formData,
+        let processedCount = 0;
+        processedCountSpan.textContent = "0";
+        progressBar.style.width = "0%";
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const ok = await processSingleFile(file, i);
+          if (ok) {
+            processedCount++;
+            processedCountSpan.textContent = String(processedCount);
+          }
+          const percent = Math.round(((i + 1) / files.length) * 100);
+          progressBar.style.width = percent + "%";
+        }
+
+        statusText.textContent = "Done. Download renamed files from the list.";
+        processing = false;
+        clearButton.disabled = false;
+      }
+
+      async function processSingleFile(file, index) {
+        const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
+        const item = document.getElementById("file-" + index);
+        const resultLine = item.querySelector(".file-result");
+
+        if (tag) {
+          tag.classList.remove("success", "error");
+          tag.classList.add("processing");
+          tag.querySelector("span:nth-child(2)").textContent = "Renaming...";
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const response = await fetch(API_URL, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error("Server error: " + response.status);
+          }
+
+          const data = await response.json();
+          if (data.status !== "success") {
+            throw new Error(data.detail || data.message || "Unknown error");
+          }
+
+          const displayTitle = data.track_name;
+          const displayBpm = Number.isFinite(data.bpm)
+            ? Math.round(data.bpm)
+            : data.bpm;
+          const displayMood = data.mood || "";
+
+          if (tag) {
+            tag.classList.remove("processing");
+            tag.classList.add("success");
+            tag.querySelector("span:nth-child(2)").textContent = "Ready";
+          }
+
+          if (resultLine) {
+            resultLine.textContent =
+              displayTitle + " · " + displayBpm + " BPM · " + displayMood;
+          }
+
+          const actions = item.querySelector(".file-actions");
+          let btn = actions.querySelector(".download-btn");
+          if (!btn) {
+            btn = document.createElement("button");
+            btn.className = "download-btn";
+            btn.textContent = "Download";
+
+            const prettyTitle =
+              displayTitle + " (" + displayBpm + " BPM - " + displayMood + ")";
+
+            btn.addEventListener("click", () =>
+              downloadRenamedFile(file, prettyTitle)
+            );
+
+            actions.appendChild(btn);
+          }
+
+          return true;
+        } catch (err) {
+          console.error(err);
+          if (tag) {
+            tag.classList.remove("processing");
+            tag.classList.add("error");
+            tag.querySelector("span:nth-child(2)").textContent = "Error";
+          }
+
+          const errorMsg = document.createElement("div");
+          errorMsg.className = "file-error-msg";
+          errorMsg.textContent =
+            err && err.message ? err.message : "Failed to rename this file.";
+          item.querySelector(".file-meta").appendChild(errorMsg);
+          return false;
+        }
+      }
+
+      async function downloadRenamedFile(file, prettyTitle) {
+        const extension = file.name.split(".").pop().toLowerCase();
+
+        const safeTitle = prettyTitle
+          .replace(/[\/\\:*?"<>|]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const newName = safeTitle + "." + extension;
+
+        const buffer = await file.arrayBuffer();
+        const blob = new Blob([buffer], {
+          type: file.type || "audio/mpeg",
         });
 
-        if (!response.ok) {
-          throw new Error("Server error: " + response.status);
-        }
-
-        const data = await response.json();
-        if (data.status !== "success") {
-          throw new Error(data.detail || data.message || "Unknown error");
-        }
-
-        const displayTitle = data.track_name;
-        const displayBpm = Number.isFinite(data.bpm)
-          ? Math.round(data.bpm)
-          : data.bpm;
-        const displayMood = data.mood || "";
-
-        if (tag) {
-          tag.classList.remove("processing");
-          tag.classList.add("success");
-          tag.querySelector("span:nth-child(2)").textContent = "Ready";
-        }
-
-        if (resultLine) {
-          resultLine.textContent =
-            displayTitle + " · " + displayBpm + " BPM · " + displayMood;
-        }
-
-        const actions = item.querySelector(".file-actions");
-        let btn = actions.querySelector(".download-btn");
-        if (!btn) {
-          btn = document.createElement("button");
-          btn.className = "download-btn";
-          btn.textContent = "Download";
-
-          const prettyTitle =
-            displayTitle + " (" + displayBpm + " BPM - " + displayMood + ")";
-
-          btn.addEventListener("click", () =>
-            downloadRenamedFile(file, prettyTitle)
-          );
-
-          actions.appendChild(btn);
-        }
-
-        return true;
-      } catch (err) {
-        console.error(err);
-        if (tag) {
-          tag.classList.remove("processing");
-          tag.classList.add("error");
-          tag.querySelector("span:nth-child(2)").textContent = "Error";
-        }
-
-        const errorMsg = document.createElement("div");
-        errorMsg.className = "file-error-msg";
-        errorMsg.textContent =
-          err && err.message ? err.message : "Failed to rename this file.";
-        item.querySelector(".file-meta").appendChild(errorMsg);
-        return false;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = newName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
-    }
 
-    // Front-end rename only: downloaded file name = prettyTitle
-    async function downloadRenamedFile(file, prettyTitle) {
-      const extension = file.name.split(".").pop().toLowerCase();
-
-      const safeTitle = prettyTitle
-        .replace(/[\/\\:*?"<>|]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const newName = safeTitle + "." + extension;
-
-      const buffer = await file.arrayBuffer();
-      const blob = new Blob([buffer], {
-        type: file.type || "audio/mpeg",
+      dropZone.addEventListener("click", () => {
+        if (!processing) fileInput.click();
       });
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = newName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "#00f5ff";
+      });
 
-    dropZone.addEventListener("click", () => {
-      if (!processing) fileInput.click();
+      dropZone.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "rgba(148,163,184,0.8)";
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "rgba(148,163,184,0.8)";
+        if (processing) return;
+        if (e.dataTransfer.files && e.dataTransfer.files.length) {
+          addFiles(e.dataTransfer.files);
+        }
+      });
+
+      fileInput.addEventListener("change", (e) => {
+        if (processing) return;
+        if (e.target.files && e.target.files.length) {
+          addFiles(e.target.files);
+        }
+      });
+
+      startButton.addEventListener("click", processAll);
+      clearButton.addEventListener("click", resetState);
+
+      resetState();
     });
-
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = "#00f5ff";
-    });
-
-    dropZone.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = "rgba(148,163,184,0.8)";
-    });
-
-    dropZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = "rgba(148,163,184,0.8)";
-      if (processing) return;
-      if (e.dataTransfer.files && e.dataTransfer.files.length) {
-        addFiles(e.dataTransfer.files);
-      }
-    });
-
-    fileInput.addEventListener("change", (e) => {
-      if (processing) return;
-      if (e.target.files && e.target.files.length) {
-        addFiles(e.target.files);
-      }
-    });
-
-    startButton.addEventListener("click", processAll);
-    clearButton.addEventListener("click", resetState);
-
-    resetState();
   </script>
 </body>
 </html>
