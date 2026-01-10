@@ -60,7 +60,6 @@
       body {
         padding: 16px;
       }
-
       .shell {
         grid-template-columns: 1fr;
       }
@@ -292,7 +291,10 @@
     .app-shell {
       height: 100%;
       border-radius: 26px;
-      background: radial-gradient(circle at 10% 0%, rgba(0,245,255,0.08), transparent 40%), radial-gradient(circle at 90% 100%, rgba(255,47,208,0.12), transparent 55%), rgba(15,23,42,0.96);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(0,245,255,0.08), transparent 40%),
+        radial-gradient(circle at 90% 100%, rgba(255,47,208,0.12), transparent 55%),
+        rgba(15,23,42,0.96);
       border: 1px solid rgba(148,163,184,0.45);
       box-shadow: var(--shadow-soft);
       display: flex;
@@ -671,7 +673,6 @@
       color: var(--primary);
     }
   </style>
-
   <script src="https://unpkg.com/browser-id3-writer@4.0.0/dist/browser-id3-writer.min.js"></script>
 </head>
 
@@ -792,8 +793,8 @@
   </div>
 
   <script>
-    // BACKEND API URL – this is your Render backend
-    const API_URL = 'https://shiftune-backend-1.onrender.com/process-audio';
+    // BACKEND API URL – Render backend service
+    const API_URL = "https://shiftune-backend-1.onrender.com/process-audio";
 
     const MAX_FILES = 50;
 
@@ -831,16 +832,12 @@
 
     function addFiles(newFiles) {
       const arr = Array.from(newFiles);
-      const spaceLeft = MAX_FILES - files.length;
-      if (spaceLeft <= 0) {
+      const combined = files.concat(arr);
+      if (combined.length > MAX_FILES) {
         alert("Shiftune limit: " + MAX_FILES + " files per run.");
         return;
       }
-      const slice = arr.slice(0, spaceLeft);
-      if (slice.length < arr.length) {
-        alert("Only the first " + slice.length + " files were added (max " + MAX_FILES + ").");
-      }
-      files = files.concat(slice);
+      files = combined;
       renderFileList();
       startButton.disabled = files.length === 0;
       statusText.textContent = "Ready. Click RUN SHIFTUNE.";
@@ -949,8 +946,8 @@
         }
 
         const data = await response.json();
-        if (!data || !data.track_slug) {
-          throw new Error("Bad response from Shiftune engine.");
+        if (data.status !== "success") {
+          throw new Error(data.detail || data.message || "Unknown error");
         }
 
         if (tag) {
@@ -960,12 +957,12 @@
         }
 
         if (resultLine) {
-          const bpmText = data.bpm ? (data.bpm.toFixed ? data.bpm.toFixed(0) : Math.round(data.bpm)) : "";
-          const moodText = data.mood || "";
           resultLine.textContent =
             data.track_name +
-            (bpmText ? " · " + bpmText + " BPM" : "") +
-            (moodText ? " · " + moodText : "");
+            " · " +
+            data.bpm.toFixed(0) +
+            " BPM · " +
+            data.mood;
         }
 
         const actions = item.querySelector(".file-actions");
@@ -975,7 +972,13 @@
           btn.className = "download-btn";
           btn.textContent = "Download";
           btn.addEventListener("click", () =>
-            downloadRenamedFile(file, data.track_slug, data.track_name, data.bpm, data.mood)
+            downloadRenamedFile(
+              file,
+              data.track_slug,
+              data.track_name,
+              data.bpm,
+              data.mood
+            )
           );
           actions.appendChild(btn);
         }
@@ -992,15 +995,13 @@
         const errorMsg = document.createElement("div");
         errorMsg.className = "file-error-msg";
         errorMsg.textContent =
-          err && err.message
-            ? err.message
-            : "Failed to rename this file.";
+          err && err.message ? err.message : "Failed to rename this file.";
         item.querySelector(".file-meta").appendChild(errorMsg);
         return false;
       }
     }
 
-    // Download with new filename AND new MP3 tags
+    // Download with new filename AND (for MP3) new ID3 tags
     async function downloadRenamedFile(file, slug, displayTitle, bpm, mood) {
       const extension = file.name.split(".").pop().toLowerCase();
       const newName = `${slug}.${extension}`;
@@ -1008,7 +1009,7 @@
       // Read file bytes
       const buffer = await file.arrayBuffer();
 
-      // Helper: actually trigger the browser download
+      // Helper: trigger the browser download
       const triggerDownload = (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1026,33 +1027,39 @@
           const writer = new ID3Writer(buffer);
 
           writer
-            .setFrame("TIT2", displayTitle || newName)        // Track title
-            .setFrame("TALB", "Shiftune Batch")               // Album
-            .setFrame("TPE1", ["Shiftune Artist"])            // Artist placeholder
-            .setFrame("TXXX", {                               // Custom BPM field
+            .setFrame("TIT2", displayTitle || newName) // Track title
+            .setFrame("TALB", "Shiftune Batch") // Album
+            .setFrame("TPE1", ["Shiftune Artist"]) // Artist placeholder
+            .setFrame("TXXX", {
               description: "Shiftune BPM",
               value: String(Math.round(bpm || 0)),
             })
-            .setFrame("COMM", {                               // Comment with mood
+            .setFrame("COMM", {
               description: "Comment",
               text: `Shiftune mood: ${mood || ""}`,
-            })
-            .addTag();
+            });
 
-          const taggedBlob = writer.getBlob();
+          writer.addTag();
+
+          const taggedBuffer = writer.arrayBuffer;
+          const taggedBlob = new Blob([taggedBuffer], { type: "audio/mpeg" });
+
           triggerDownload(taggedBlob);
           return;
         } catch (e) {
-          console.error("ID3 tag write failed, falling back rename only:", e);
+          console.error("ID3 tag write failed, falling back to rename-only:", e);
           // fall through to simple rename
         }
       }
 
       // Non-MP3 or if tagging fails → just rename the file
-      const renamedBlob = new Blob([buffer], { type: file.type || "audio/mpeg" });
+      const renamedBlob = new Blob([buffer], {
+        type: file.type || "audio/mpeg",
+      });
       triggerDownload(renamedBlob);
     }
 
+    // Event listeners
     dropZone.addEventListener("click", () => {
       if (!processing) fileInput.click();
     });
