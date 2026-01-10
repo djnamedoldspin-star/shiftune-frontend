@@ -997,6 +997,7 @@ actions.appendChild(btn);
     }
 // Download with new filename AND new MP3 tags
 // Download with new filename AND new MP3 tags
+// Download with new filename AND new MP3 tags
 async function downloadRenamedFile(file, slug, displayTitle, bpm, mood) {
   const extension = file.name.split(".").pop().toLowerCase();
   const newName = `${slug}.${extension}`;
@@ -1052,7 +1053,6 @@ async function downloadRenamedFile(file, slug, displayTitle, bpm, mood) {
   const renamedBlob = new Blob([buffer], { type: file.type || "audio/mpeg" });
   triggerDownload(renamedBlob);
 }
-
 
   // Fallback for non-MP3 or if tagging fails: just rename
   const renamedFile = new File([buffer], newName, {
