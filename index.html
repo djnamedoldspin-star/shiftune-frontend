@@ -1466,8 +1466,8 @@
         }
       });
 
-      // Payment Modal Functions
-      function showPaymentModal() {
+      // Payment Modal Functions (global scope for onclick handlers)
+      window.showPaymentModal = function() {
         const freeRemaining = getFreeRemaining();
         const paidFiles = Math.max(0, files.length - freeRemaining);
         const rawPrice = paidFiles * PRICE_PER_FILE;
@@ -1483,11 +1483,11 @@
         document.getElementById("paymentModal").classList.add("active");
       }
       
-      function closePaymentModal() {
+      window.closePaymentModal = function() {
         document.getElementById("paymentModal").classList.remove("active");
       }
       
-      async function proceedToPayment() {
+      window.proceedToPayment = async function() {
         const payButton = document.getElementById("payButton");
         payButton.disabled = true;
         payButton.textContent = "Redirecting to Stripe...";
@@ -1500,7 +1500,8 @@
           });
           
           if (!response.ok) {
-            throw new Error("Failed to create checkout session");
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || "Failed to create checkout session");
           }
           
           const data = await response.json();
@@ -1519,6 +1520,9 @@
           payButton.textContent = "💳 Pay & Process Files";
         }
       }
+      
+      // Local reference for internal use
+      function showPaymentModal() { window.showPaymentModal(); }
       
       // Check if returning from successful payment
       function checkPaymentReturn() {
