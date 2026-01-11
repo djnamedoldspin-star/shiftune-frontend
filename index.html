@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="Drop your messy audio files, get clean, DJ-ready names in one click. Shiftune Studio turns 'Beat_12_mixdown-FINAL.mp3' into something you can actually sell." />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <style>
     :root {
@@ -757,6 +758,9 @@
           <button class="btn-primary" id="startButton" disabled>
             Run Shiftune
           </button>
+          <button class="btn-primary" id="downloadAllButton" style="display: none; background: linear-gradient(135deg, #22c55e, #10b981);">
+            ⬇ Download All
+          </button>
           <button class="btn-secondary" id="clearButton">
             <span class="dot"></span>
             Reset
@@ -799,12 +803,15 @@
         return `${base}-${n}${ext}`;
       }
 
-      const API_URL = "https://shiftune-backend-1.onrender.com/process-audio";
+      const API_BASE = "https://shiftune-backend-1.onrender.com";
+      const API_URL = API_BASE + "/process-audio";      // Single file endpoint (fallback)
+      const API_BATCH = API_BASE + "/process-all";     // Batch endpoint (primary)
       const MAX_FILES = 50;
 
       const fileInput = document.getElementById("fileInput");
       const dropZone = document.getElementById("dropZone");
       const startButton = document.getElementById("startButton");
+      const downloadAllButton = document.getElementById("downloadAllButton");
       const clearButton = document.getElementById("clearButton");
       const statusText = document.getElementById("statusText");
       const progressBar = document.getElementById("progressBar");
@@ -822,8 +829,11 @@
         files = [];
         processedResults = [];
         processing = false;
+        usedFilenames.clear();
         fileList.innerHTML = "";
         startButton.disabled = true;
+        startButton.style.display = "inline-flex";
+        downloadAllButton.style.display = "none";
         clearButton.disabled = false;
         progressBar.style.width = "0%";
         statusText.textContent = "Waiting for files.";
@@ -908,26 +918,170 @@
         processedResults = [];
         startButton.disabled = true;
         clearButton.disabled = true;
-        statusText.textContent = "Processing files with Shiftune...";
+        statusText.textContent = "Uploading " + files.length + " files...";
 
-        let processedCount = 0;
-        processedCountSpan.textContent = "0";
-        progressBar.style.width = "0%";
-
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          const ok = await processSingleFile(file, i);
-          if (ok) {
-            processedCount++;
-            processedCountSpan.textContent = String(processedCount);
+        // Set all tags to processing
+        files.forEach((_, index) => {
+          const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
+          if (tag) {
+            tag.classList.remove("success", "error");
+            tag.classList.add("processing");
+            tag.querySelector("span:nth-child(2)").textContent = "Uploading...";
           }
-          const percent = Math.round(((i + 1) / files.length) * 100);
-          progressBar.style.width = percent + "%";
-        }
+        });
 
-        statusText.textContent = "Done. Download renamed files from the list.";
-        processing = false;
-        clearButton.disabled = false;
+        processedCountSpan.textContent = "0";
+        progressBar.style.width = "10%";
+
+        try {
+          // Build FormData with all files
+          const formData = new FormData();
+          files.forEach(file => {
+            formData.append("files", file);
+          });
+
+          // Optional: Add access token if using payment flow
+          const accessToken = sessionStorage.getItem("accessToken");
+          if (accessToken) {
+            formData.append("access_token", accessToken);
+          }
+
+          progressBar.style.width = "30%";
+          statusText.textContent = "Processing " + files.length + " files with Shiftune...";
+
+          // Update tags to show processing
+          files.forEach((_, index) => {
+            const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
+            if (tag) {
+              tag.querySelector("span:nth-child(2)").textContent = "Renaming...";
+            }
+          });
+
+          // Single batch request
+          const response = await fetch(API_BATCH, {
+            method: "POST",
+            body: formData
+          });
+
+          progressBar.style.width = "70%";
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: "Server error" }));
+            throw new Error(err.detail || "HTTP " + response.status);
+          }
+
+          const data = await response.json();
+
+          // Handle payment required response
+          if (data.status === "payment_required") {
+            statusText.textContent = data.detail || "Payment required";
+            if (data.checkout_url) {
+              sessionStorage.setItem("pendingFilesCount", files.length.toString());
+              window.location.href = data.checkout_url;
+            }
+            return;
+          }
+
+          progressBar.style.width = "90%";
+
+          // Process batch results
+          if (data.status === "success" && data.results) {
+            let successCount = 0;
+
+            data.results.forEach((result, index) => {
+              const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
+              const item = document.getElementById("file-" + index);
+              const resultLine = item ? item.querySelector(".file-result") : null;
+
+              if (result.status === "success") {
+                // Store result with file data
+                processedResults[index] = {
+                  trackName: result.track_name,
+                  bpm: result.bpm,
+                  mood: result.mood || "",
+                  newFilename: makeUniqueFilename(result.new_filename),
+                  fileData: result.file_data,
+                  fileType: result.file_type
+                };
+
+                const displayBpm = Number.isFinite(result.bpm) ? Math.round(result.bpm) : result.bpm;
+
+                if (tag) {
+                  tag.classList.remove("processing");
+                  tag.classList.add("success");
+                  tag.querySelector("span:nth-child(2)").textContent = "Ready";
+                }
+
+                if (resultLine) {
+                  resultLine.textContent = result.track_name + " · " + displayBpm + " BPM · " + (result.mood || "");
+                }
+
+                // Add download button
+                if (item) {
+                  const actions = item.querySelector(".file-actions");
+                  let btn = actions.querySelector(".download-btn");
+                  if (!btn) {
+                    btn = document.createElement("button");
+                    btn.className = "download-btn";
+                    btn.textContent = "Download";
+                    btn.addEventListener("click", () => downloadTaggedFile(index));
+                    actions.appendChild(btn);
+                  }
+                }
+
+                successCount++;
+              } else {
+                // Handle individual file error
+                if (tag) {
+                  tag.classList.remove("processing");
+                  tag.classList.add("error");
+                  tag.querySelector("span:nth-child(2)").textContent = "Error";
+                }
+
+                if (item) {
+                  const errorMsg = document.createElement("div");
+                  errorMsg.className = "file-error-msg";
+                  errorMsg.textContent = result.error || "Failed to rename this file.";
+                  item.querySelector(".file-meta").appendChild(errorMsg);
+                }
+              }
+            });
+
+            processedCountSpan.textContent = String(successCount);
+            progressBar.style.width = "100%";
+            statusText.textContent = "Done. Download renamed files from the list.";
+
+            // Show Download All button if we have successful results
+            if (successCount > 0) {
+              startButton.style.display = "none";
+              downloadAllButton.style.display = "inline-flex";
+            }
+
+            if (data.failed > 0) {
+              console.warn(data.failed + " files failed to process");
+            }
+          } else {
+            throw new Error(data.detail || "Unexpected response format");
+          }
+
+        } catch (err) {
+          console.error("Batch processing error:", err);
+          statusText.textContent = "Error: " + (err.message || "Processing failed");
+          progressBar.style.width = "0%";
+
+          // Mark all as error
+          files.forEach((_, index) => {
+            const tag = document.querySelector('.file-tag[data-index="' + index + '"]');
+            if (tag && tag.classList.contains("processing")) {
+              tag.classList.remove("processing");
+              tag.classList.add("error");
+              tag.querySelector("span:nth-child(2)").textContent = "Error";
+            }
+          });
+        } finally {
+          processing = false;
+          clearButton.disabled = false;
+        }
       }
 
       async function processSingleFile(file, index) {
@@ -1038,6 +1192,71 @@
         URL.revokeObjectURL(url);
       }
 
+      // Download all processed files as a zip
+      async function downloadAll() {
+        const validResults = processedResults.filter(r => r && r.fileData);
+        if (validResults.length === 0) {
+          alert("No files to download");
+          return;
+        }
+
+        // Single file - download directly
+        if (validResults.length === 1) {
+          const index = processedResults.findIndex(r => r && r.fileData);
+          downloadTaggedFile(index);
+          return;
+        }
+
+        // Multiple files - create zip
+        downloadAllButton.disabled = true;
+        downloadAllButton.textContent = "Creating ZIP...";
+
+        try {
+          const zip = new JSZip();
+
+          validResults.forEach(result => {
+            const byteCharacters = atob(result.fileData);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            zip.file(result.newFilename, byteArray);
+          });
+
+          const zipBlob = await zip.generateAsync({ 
+            type: "blob",
+            compression: "DEFLATE",
+            compressionOptions: { level: 6 }
+          });
+
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "shiftune-renamed-" + Date.now() + ".zip";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          statusText.textContent = "ZIP downloaded! " + validResults.length + " files included.";
+        } catch (err) {
+          console.error("ZIP creation failed:", err);
+          alert("Failed to create ZIP. Downloading files individually...");
+          
+          // Fallback: download individually
+          for (let i = 0; i < processedResults.length; i++) {
+            if (processedResults[i] && processedResults[i].fileData) {
+              downloadTaggedFile(i);
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+        } finally {
+          downloadAllButton.disabled = false;
+          downloadAllButton.textContent = "⬇ Download All";
+        }
+      }
+
       dropZone.addEventListener("click", () => {
         if (!processing) fileInput.click();
       });
@@ -1069,6 +1288,7 @@
       });
 
       startButton.addEventListener("click", processAll);
+      downloadAllButton.addEventListener("click", downloadAll);
       clearButton.addEventListener("click", resetState);
 
       resetState();
