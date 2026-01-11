@@ -666,6 +666,174 @@
     .footer-note span {
       color: var(--primary);
     }
+
+    /* Payment Modal */
+    .payment-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .payment-modal.active {
+      display: flex;
+    }
+
+    .payment-modal-content {
+      background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.99));
+      border: 1px solid rgba(0,245,255,0.3);
+      border-radius: 24px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 0 60px rgba(0,245,255,0.2);
+      overflow: hidden;
+    }
+
+    .payment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(148,163,184,0.2);
+    }
+
+    .payment-header h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .payment-close {
+      background: none;
+      border: 1px solid rgba(148,163,184,0.4);
+      color: var(--muted);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .payment-close:hover {
+      background: rgba(255,255,255,0.1);
+      color: var(--text);
+    }
+
+    .payment-body {
+      padding: 24px;
+    }
+
+    .payment-free-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      background: rgba(249,115,115,0.1);
+      border: 1px solid rgba(249,115,115,0.3);
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    .payment-free-icon {
+      font-size: 28px;
+    }
+
+    .payment-free-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .payment-free-text strong {
+      font-size: 14px;
+      color: #f97373;
+    }
+
+    .payment-free-text span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .payment-pricing {
+      margin-bottom: 20px;
+    }
+
+    .payment-files {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 16px;
+      color: var(--primary);
+    }
+
+    .payment-breakdown {
+      background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .payment-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .payment-row.payment-minimum {
+      color: #fbbf24;
+      font-style: italic;
+    }
+
+    .payment-row.payment-total {
+      border-top: 1px solid rgba(148,163,184,0.2);
+      margin-top: 8px;
+      padding-top: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    .btn-pay {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #22c55e, #10b981);
+      color: #020617;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .btn-pay:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(34,197,94,0.4);
+    }
+
+    .btn-pay:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .payment-secure {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
   </style>
 </head>
 
@@ -732,12 +900,13 @@
             <div class="app-subtitle">Drop up to 50 audio files · Uploaded for processing · Not stored.</div>
           </div>
           <div class="app-chip-row">
+            <div class="app-chip" id="freeCounter" style="color: #22c55e;">
+              <span class="dot" style="background: #22c55e;"></span>
+              3/3 free today
+            </div>
             <div class="app-chip">
               <span class="dot"></span>
               Local Only
-            </div>
-            <div class="app-chip">
-              1-Click Slugs
             </div>
           </div>
         </div>
@@ -788,6 +957,54 @@
     </div>
   </div>
 
+  <!-- Payment Modal -->
+  <div class="payment-modal" id="paymentModal">
+    <div class="payment-modal-content">
+      <div class="payment-header">
+        <h2>🔓 Unlock More Renames</h2>
+        <button class="payment-close" onclick="closePaymentModal()">✕</button>
+      </div>
+      <div class="payment-body">
+        <div class="payment-free-info">
+          <div class="payment-free-icon">🎁</div>
+          <div class="payment-free-text">
+            <strong>You've used your 3 free renames today!</strong>
+            <span>Free tier resets at midnight</span>
+          </div>
+        </div>
+        <div class="payment-pricing">
+          <div class="payment-files">
+            <span id="paymentFileCount">0</span> files selected
+          </div>
+          <div class="payment-breakdown">
+            <div class="payment-row">
+              <span>Free remaining:</span>
+              <span id="paymentFreeRemaining">0 files</span>
+            </div>
+            <div class="payment-row">
+              <span>Paid files:</span>
+              <span id="paymentPaidFiles">0 × $0.20</span>
+            </div>
+            <div class="payment-row payment-minimum" id="paymentMinimumRow" style="display: none;">
+              <span>Minimum charge:</span>
+              <span>$3.00</span>
+            </div>
+            <div class="payment-row payment-total">
+              <span>Total:</span>
+              <span id="paymentTotal">$0.00</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-pay" id="payButton" onclick="proceedToPayment()">
+          💳 Pay & Process Files
+        </button>
+        <div class="payment-secure">
+          🔒 Secure payment via Stripe
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       // Prevent duplicate download names in a single batch
@@ -806,6 +1023,53 @@
       const API_BASE = "https://shiftune-backend-1.onrender.com";
       const API_URL = API_BASE + "/process-audio";
       const MAX_FILES = 50;
+      
+      // Freemium settings
+      const FREE_FILES_PER_DAY = 3;
+      const PRICE_PER_FILE = 0.20;
+      const MINIMUM_CHARGE = 3.00;
+      
+      // Get today's date as string for localStorage key
+      function getTodayKey() {
+        return "shiftune_used_" + new Date().toISOString().split("T")[0];
+      }
+      
+      // Get number of free files used today
+      function getUsedToday() {
+        const key = getTodayKey();
+        return parseInt(localStorage.getItem(key) || "0", 10);
+      }
+      
+      // Increment used count
+      function incrementUsed() {
+        const key = getTodayKey();
+        const current = getUsedToday();
+        localStorage.setItem(key, String(current + 1));
+        updateFreeCounter();
+      }
+      
+      // Get remaining free files
+      function getFreeRemaining() {
+        return Math.max(0, FREE_FILES_PER_DAY - getUsedToday());
+      }
+      
+      // Calculate price for files beyond free tier
+      function calculatePrice(fileCount) {
+        const freeRemaining = getFreeRemaining();
+        const paidFiles = Math.max(0, fileCount - freeRemaining);
+        if (paidFiles === 0) return 0;
+        return Math.max(paidFiles * PRICE_PER_FILE, MINIMUM_CHARGE);
+      }
+      
+      // Update the free counter display
+      function updateFreeCounter() {
+        const counter = document.getElementById("freeCounter");
+        const remaining = getFreeRemaining();
+        if (counter) {
+          counter.textContent = remaining + "/" + FREE_FILES_PER_DAY + " free today";
+          counter.style.color = remaining === 0 ? "#f97373" : "#22c55e";
+        }
+      }
 
       const fileInput = document.getElementById("fileInput");
       const dropZone = document.getElementById("dropZone");
@@ -838,6 +1102,7 @@
         statusText.textContent = "Waiting for files.";
         processedCountSpan.textContent = "0";
         totalCountSpan.textContent = "0";
+        updateFreeCounter();
       }
 
       function humanFileSize(bytes) {
@@ -913,6 +1178,31 @@
 
       async function processAll() {
         if (processing || files.length === 0) return;
+        
+        // Check if user has paid access token
+        const accessToken = sessionStorage.getItem("accessToken");
+        if (accessToken) {
+          // User has paid, process all files
+          await startProcessing();
+          // Clear access token after use
+          sessionStorage.removeItem("accessToken");
+          return;
+        }
+        
+        const freeRemaining = getFreeRemaining();
+        const price = calculatePrice(files.length);
+        
+        // If all files can be processed for free, proceed
+        if (files.length <= freeRemaining) {
+          await startProcessing();
+          return;
+        }
+        
+        // Otherwise show payment modal
+        showPaymentModal();
+      }
+      
+      async function startProcessing() {
         processing = true;
         processedResults = [];
         startButton.disabled = true;
@@ -1028,6 +1318,12 @@
             btn.textContent = "Download";
             btn.addEventListener("click", () => downloadTaggedFile(index));
             actions.appendChild(btn);
+          }
+
+          // Increment free usage if not using paid access token
+          const accessToken = sessionStorage.getItem("accessToken");
+          if (!accessToken) {
+            incrementUsed();
           }
 
           return true;
@@ -1170,11 +1466,106 @@
         }
       });
 
+      // Payment Modal Functions
+      function showPaymentModal() {
+        const freeRemaining = getFreeRemaining();
+        const paidFiles = Math.max(0, files.length - freeRemaining);
+        const rawPrice = paidFiles * PRICE_PER_FILE;
+        const finalPrice = calculatePrice(files.length);
+        const showMinimum = rawPrice < MINIMUM_CHARGE && paidFiles > 0;
+        
+        document.getElementById("paymentFileCount").textContent = files.length;
+        document.getElementById("paymentFreeRemaining").textContent = freeRemaining + " files";
+        document.getElementById("paymentPaidFiles").textContent = paidFiles + " × $" + PRICE_PER_FILE.toFixed(2);
+        document.getElementById("paymentTotal").textContent = "$" + finalPrice.toFixed(2);
+        document.getElementById("paymentMinimumRow").style.display = showMinimum ? "flex" : "none";
+        
+        document.getElementById("paymentModal").classList.add("active");
+      }
+      
+      function closePaymentModal() {
+        document.getElementById("paymentModal").classList.remove("active");
+      }
+      
+      async function proceedToPayment() {
+        const payButton = document.getElementById("payButton");
+        payButton.disabled = true;
+        payButton.textContent = "Redirecting to Stripe...";
+        
+        try {
+          const response = await fetch(API_BASE + "/create-checkout-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ files_count: files.length })
+          });
+          
+          if (!response.ok) {
+            throw new Error("Failed to create checkout session");
+          }
+          
+          const data = await response.json();
+          
+          if (data.url) {
+            // Store file count in sessionStorage for after payment
+            sessionStorage.setItem("pendingFilesCount", files.length.toString());
+            window.location.href = data.url;
+          } else {
+            throw new Error("No checkout URL returned");
+          }
+        } catch (err) {
+          console.error("Payment error:", err);
+          alert("Payment setup failed: " + err.message);
+          payButton.disabled = false;
+          payButton.textContent = "💳 Pay & Process Files";
+        }
+      }
+      
+      // Check if returning from successful payment
+      function checkPaymentReturn() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get("session_id");
+        
+        if (sessionId) {
+          // Clear URL params
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // Verify payment and get access token
+          verifyPayment(sessionId);
+        }
+      }
+      
+      async function verifyPayment(sessionId) {
+        try {
+          const response = await fetch(API_BASE + "/verify-checkout-session?session_id=" + sessionId);
+          
+          if (!response.ok) {
+            throw new Error("Payment verification failed");
+          }
+          
+          const data = await response.json();
+          
+          if (data.paid && data.access_token) {
+            sessionStorage.setItem("accessToken", data.access_token);
+            statusText.textContent = "✅ Payment verified! Drop your files to process them.";
+            
+            // Show success message
+            alert("Payment successful! You can now process your files. Just drop them again and click Run Shiftune.");
+          }
+        } catch (err) {
+          console.error("Verification error:", err);
+          statusText.textContent = "Payment verification failed. Please contact support.";
+        }
+      }
+      
+      // Check for payment return on load
+      checkPaymentReturn();
+
       startButton.addEventListener("click", processAll);
       downloadAllButton.addEventListener("click", downloadAll);
       clearButton.addEventListener("click", resetState);
 
       resetState();
+      updateFreeCounter();
     });
   </script>
 </body>
