@@ -694,7 +694,7 @@
         </div>
         <p class="hero-sub">
           Drop your export folder, click once, and Shiftune cleans every filename into a store-ready,
-          playlist-ready, DJ-ready title with BPM and mood tags. No more "_final_mixdown_v12_master(2)".
+          playlist-ready, DJ-ready title with BPM and mood tags. Files are uploaded to the Shiftune backend for processing and returned immediately; they are not stored.
         </p>
 
         <div class="hero-pill">
@@ -728,7 +728,7 @@
         <div class="app-header">
           <div class="app-header-left">
             <div class="app-title">Batch Renamer</div>
-            <div class="app-subtitle">Drop up to 50 audio files · Keep everything on your device.</div>
+            <div class="app-subtitle">Drop up to 50 audio files · Uploaded for processing · Not stored.</div>
           </div>
           <div class="app-chip-row">
             <div class="app-chip">
@@ -745,7 +745,7 @@
           <input type="file" id="fileInput" multiple accept=".wav,.mp3,.flac,.aiff,.m4a,.ogg" />
           <div class="drop-title">Drop your audio exports here</div>
           <div class="drop-sub">
-            or click to choose files from your computer.
+            or click to choose files from your computer. Max 25 MB per file.
           </div>
           <div class="pill-row">
             <div class="pill">Max <strong>50</strong> files</div>
@@ -778,7 +778,7 @@
         <div class="file-list" id="fileList"></div>
 
         <div class="footer-note">
-          FILES STAY LOCAL · <span>SHIFTUNE RENAMES ONLY</span>
+          FILES UPLOADED FOR PROCESSING · <span>NOT STORED</span>
         </div>
       </div>
     </div>
@@ -786,6 +786,19 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
+      // Prevent duplicate download names in a single batch
+      const usedFilenames = new Map();
+      function makeUniqueFilename(name) {
+        const dot = name.lastIndexOf(".");
+        const base = dot !== -1 ? name.slice(0, dot) : name;
+        const ext  = dot !== -1 ? name.slice(dot) : "";
+        const key = name.toLowerCase();
+        const n = (usedFilenames.get(key) || 0) + 1;
+        usedFilenames.set(key, n);
+        if (n === 1) return name;
+        return `${base}-${n}${ext}`;
+      }
+
       const API_URL = "https://shiftune-backend-1.onrender.com/process-audio";
       const MAX_FILES = 50;
 
@@ -955,7 +968,7 @@
             trackName: displayTitle,
             bpm: displayBpm,
             mood: displayMood,
-            newFilename: data.new_filename,
+            newFilename: makeUniqueFilename(data.new_filename),
             fileData: data.file_data,  // Base64 encoded tagged file
             fileType: data.file_type
           };
