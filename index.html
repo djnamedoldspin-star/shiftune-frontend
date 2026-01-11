@@ -937,6 +937,12 @@
           // Update status for current file
           statusText.textContent = "Processing file " + (i + 1) + " of " + files.length + "...";
           
+          // Auto-scroll to current file
+          const currentItem = document.getElementById("file-" + i);
+          if (currentItem) {
+            currentItem.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          
           const ok = await processSingleFile(file, i);
           if (ok) {
             processedCount++;
@@ -947,6 +953,12 @@
         }
 
         statusText.textContent = "Done. Download renamed files from the list.";
+        
+        // Scroll back to top to show Download All button
+        const firstItem = document.getElementById("file-0");
+        if (firstItem) {
+          firstItem.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
         
         // Show Download All button if we have successful results
         if (processedCount > 0) {
